@@ -1,0 +1,33 @@
+#!/usr/bin/ansible-playbook
+---
+  - name: registruj promenne
+    set_fact:
+      tabulka: "process"
+      hotovo: "YES"
+  - name: Register file
+    stat:
+      path: "/etc/KBpatch-version"
+    register: file_path
+
+  - name: get content of remote file
+    slurp:
+      src: /etc/KBpatch-version
+    register: version
+    when: file_path.stat.exists
+
+  - name: nastav patch
+    set_fact:
+      patch: "{{ (version.content | b64decode).replace('\n','') }}"
+    when: file_path.stat.exists
+
+  - name: postuj data na server
+    uri:
+      method: POST
+      validate_certs: no
+      body: "hostname={{ inventory_hostname }}&\
+             kernel={{ vars[ansible_kernel]}}&\
+             patch={{ patch }}&\
+             tabulka={{ tabulka }}&\
+             done={{ hotovo }}&\
+             os={{ hostvars[inventory_hostname].ansible_distribution }}{{ hostvars[inventory_hostname].ansible_distribution_major_version }}"
+      url: "http://patchmonitor.sos.kb.cz/update.php"

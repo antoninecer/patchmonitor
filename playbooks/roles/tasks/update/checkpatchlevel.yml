@@ -1,0 +1,45 @@
+---
+  - name: CHECKPATCHLEVEL | get content of remote file with patchlevels
+    slurp:
+      src: /appl/install/ssp_patch/versions
+    register: patchlevels_encoded
+    delegate_to: 172.16.38.27
+
+  - name: CHECKPATCHLEVEL | decode patchlevels info
+    set_fact:
+      plevels: "{{ ((patchlevels_encoded.content | b64decode).split('\n')) }}"
+
+  - name: CHECKPATCHLEVEL | new list version_list
+    set_fact:
+      versions_list: []
+
+  - name: CHECKPATCHLEVEL | reverse order
+    set_fact:
+      versions_list: "{{ versions_list }} + ['{{ item.split(' ')[1] }}']"
+    loop: "{{ plevels|reverse|list }}"
+    when: "item.split(' ')[1] is defined"
+
+  - name: CHECKPATCHLEVEL | setup list with requested number of values
+    set_fact:
+      plevels: "{{ versions_list[:patchesback | int] }}"
+
+  - name: CHECKPATCHLEVEL |  get content of /etc/KBpatch-version
+    slurp:
+      src: /etc/KBpatch-version
+    register: current_patchlevel
+
+  - name: CHECKPATCHLEVEL |  decode current patchLevel
+    set_fact:
+      current: "{{ (current_patchlevel.content | b64decode).replace('\n','') }}"
+
+  - debug:
+      msg: "Current patchLevel: {{ current }} and comparing with: {{ plevels }} "
+
+  # Update Patchmonitor we are done with this server
+  - name: MAIN | Write progres to patchmonitor
+    include_tasks: updatemonitor.yml
+    when: current in plevels
+
+  - name: CHECKPATCHLEVEL | exit play for this host if patchlevel of server is in plevels
+    meta: end_host
+    when: current in plevels

@@ -1,0 +1,63 @@
+---
+# Gather basic data for ugrade or just check
+- name: MAIN | gather basic subset
+  setup:
+    gather_subset:
+      - '!all'
+
+# Find if reference server exists and sets fact
+- name: MAIN | if reference server exists
+  set_fact:
+    reference_exists: true
+  when: ("{{vars[ansible_os_family+ansible_distribution_major_version]}}" != '')
+
+# Set fact correct kerenl
+- name: MAIN | Set fact correct_kernel
+  set_fact:
+    correct_kernel: "{{ vars[ansible_os_family+ansible_distribution_major_version+'kernel'] if not reference_exists else hostvars[vars[ansible_os_family+ansible_distribution_major_version]]['ansible_kernel']}}"
+
+# Run update/upgrade if up_ver not empty
+- block:
+  - name: upgrade18
+    include_tasks: "./upgrade/upgrade18.yml"
+    when: (up_ver == '18' and ansible_distribution == 'Ubuntu')
+
+  - name: upgrade20
+    include_tasks: "./upgrade/up18check.yml"
+    when: (up_ver == '20' and ansible_distribution == 'Ubuntu')
+
+  # Set webserver for patchmonitor from hostname
+  - name: Set web servername from hostname
+    set_fact:
+      webserver: "{% if ansible_hostname.startswith('vc') or ansible_hostname.startswith('c') %}syslog-ha.sos.kb.cz{% else %}patchmonitor-test.sos.kb.cz{% endif %}"
+    when: patchmon
+
+  # Check if server is not in excluded servers
+  - name: MAIN | exclude server
+    include_tasks: "../tasks/update/exception.yml"
+    when: 
+      - up_ver == 'update'
+      - not force_patch
+      - patchmon
+
+  - name: MAIN | Include update
+    include_tasks: "../tasks/update/main.yml"
+    when: up_ver == 'update'
+
+  when: up_ver|length > 0
+
+# Set fact correct kerenl
+- name: MAIN | Set fact correct_kernel
+  set_fact:
+    correct_kernel: "{{ vars[ansible_os_family+ansible_distribution_major_version+'kernel'] if not reference_exists else hostvars[vars[ansible_os_family+ansible_distribution_major_version]]['ansible_kernel']}}"
+
+# Run check
+- name: MAIN | Include upgrade
+  include_tasks: check.yml
+
+# Update Patchmonitor we are done with this server
+- name: MAIN | Write progres to patchmonitor
+  include_tasks: update/updatemonitor.yml
+  when: 
+    - patchmon
+    - up_ver == 'update'

@@ -1,0 +1,30 @@
+#!/usr/bin/ansible-playbook
+---
+  - name: UPDATEMonitor | Register file
+    stat:
+      path: "/etc/KBpatch-version"
+    register: file_path
+    
+  - name: UPDATEMonitor | Get content of remote file
+    slurp:
+      src: /etc/KBpatch-version
+    register: version
+    when: file_path.stat.exists
+
+  - name: UPDATEMonitor | Set patch
+    set_fact:
+      patch: "{{ (version.content | b64decode).replace('\n','') }}"
+    when: file_path.stat.exists
+
+  - name: UPDATEMonitor | Send POST message to patchmonitor web app
+    uri:
+      method: POST
+      validate_certs: no
+      body: "hostname={% if '.' in inventory_hostname %}{{ inventory_hostname.split('.')[0] }}{% else %}{{ inventory_hostname }}{% endif %}&\
+             kernel={{ ansible_kernel }}&\
+             patch={{ patch }}&\
+             tabulka={{ table| default('process') }}&\
+             done=YES&\
+             os={{ hostvars[inventory_hostname].ansible_distribution }}{{ hostvars[inventory_hostname].ansible_distribution_major_version }}"
+      url: "http://{{ webserver }}/update.php"
+    ignore_errors: yes

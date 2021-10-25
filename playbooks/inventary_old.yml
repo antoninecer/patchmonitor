@@ -1,0 +1,40 @@
+#!/usr/bin/ansible-playbook
+---
+- hosts: all
+  vars:
+    patch: ""
+    tabulka: "inventory" #process
+    hotovo: "NO"
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: yes
+  tasks:
+
+    - name: Register file
+      stat:
+        path: "/etc/KBpatch-version"
+      register: file_path
+
+    - name: get content of remote file
+      slurp:
+        src: /etc/KBpatch-version
+      register: version
+      when: file_path.stat.exists
+
+    - name: nastav patch
+      set_fact:
+        patch: "{{ (version.content | b64decode).replace('\n','') }}"
+      when: file_path.stat.exists
+
+    - name: postuj data na server
+      uri:
+        method: POST
+        validate_certs: no
+        body: "hostname={{ ansible_hostname }}&\
+               kernel={{ ansible_kernel }}&\
+               patch={{ patch }}&\
+               tabulka={{ tabulka }}&\
+               done={{ hotovo }}&\
+               os={{ hostvars[inventory_hostname].ansible_distribution }}{{ hostvars[inventory_hostname].ansible_distribution_major_version }}"
+        url: "http://{{ patchmonitor | default('patchmonitor') }}.sos.kb.cz/update.php"

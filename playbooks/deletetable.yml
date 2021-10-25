@@ -1,0 +1,17 @@
+---
+- hosts: localhost
+  vars:
+    patch: ""
+    tabulka: "proses"
+    # inventory / proses
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: no
+  tasks:
+    - name: postuj data na server
+      uri:
+        method: POST
+        validate_certs: no
+        body: "tabulka={{ tabulka }}"
+        url: "http://patchmonitor.sos.kb.cz/delete.php"

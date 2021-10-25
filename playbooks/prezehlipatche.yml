@@ -1,0 +1,7 @@
+---
+- name: Prezehli /etc/KBpatch-version
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: zehli shel scriptem
+      shell: if [ "$(cat /var/mws_upgrader | grep 2/21 | wc -l)"  == 1 ] && ! [ -f /etc/KBpatch-version ]; then echo "2/21" > /etc/KBpatch-version; fi
